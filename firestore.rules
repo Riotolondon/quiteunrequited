@@ -1,0 +1,39 @@
+rules_version = '2';
+
+service cloud.firestore {
+  match /databases/{database}/documents {
+    // Helper function to check if user is admin
+    function isAdmin() {
+      return request.auth != null && request.auth.token.email in ['mthokozisiorchid@gmail.com'];
+    }
+
+    // Posts collection rules
+    match /posts/{postId} {
+      // Anyone can read approved posts, admins can read all posts
+      allow read: if resource.data.approved == true || isAdmin();
+      
+      // Anyone can create a post
+      allow create: if 
+        // Required fields validation
+        request.resource.data.to is string &&
+        request.resource.data.message is string &&
+        request.resource.data.category in ['Love', 'Regret', 'Goodbye', 'Apology', 'Gratitude', 'Friendship', 'Family', 'Other'] &&
+        // Ensure approved is false for new posts
+        request.resource.data.approved == false &&
+        // Ensure createdAt is a valid timestamp
+        request.resource.data.createdAt is timestamp;
+
+      // Allow updating only the relateCount field for approved posts
+      allow update: if 
+        isAdmin() || (
+          resource.data.approved == true &&
+          request.resource.data.diff(resource.data).affectedKeys().hasOnly(['relateCount']) &&
+          request.resource.data.relateCount is number &&
+          request.resource.data.relateCount >= 0
+        );
+
+      // Only admins can read all posts, update approval status, or delete posts
+      allow delete: if isAdmin();
+    }
+  }
+} 
